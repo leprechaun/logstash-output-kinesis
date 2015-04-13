@@ -87,9 +87,19 @@ class LogStash::Outputs::SQS < LogStash::Outputs::Base
 
   public 
   def register
+    require "aws-sdk-v1"
     require "aws-sdk"
 
     @sqs = AWS::SQS.new(aws_options_hash)
+    @logger.debug("Creating Kinesis object")
+    @logger.debug("access_key_id = '#{@access_key_id}'")
+    @logger.debug("secret_access_key = '#{@secret_access_key}'")
+    @logger.debug("region = '#{@region}'")
+    @kinesis = Aws::Kinesis::Client.new(
+      region: @region,
+      access_key_id: @access_key_id,
+      secret_access_key: @secret_access_key
+    )
 
     if @batch
       if @batch_events > 10
@@ -109,7 +119,6 @@ class LogStash::Outputs::SQS < LogStash::Outputs::Base
     end
 
     begin
-      @logger.debug("New debugging line")
       @logger.debug("Connecting to AWS SQS queue '#{@queue}'...")
       @sqs_queue = @sqs.queues.named(@queue)
       @logger.info("Connected to AWS SQS queue '#{@queue}' successfully.")
