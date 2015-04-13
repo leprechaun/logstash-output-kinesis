@@ -62,7 +62,8 @@ class LogStash::Outputs::SQS < LogStash::Outputs::Base
   include LogStash::PluginMixins::AwsConfig
   include Stud::Buffer
 
-  config_name "sqs"
+  config_name "kinesis"
+  milestone 1
 
   # Name of SQS queue to push messages into. Note that this is just the name of the queue, not the URL or ARN.
   config :queue, :validate => :string, :required => true
@@ -108,6 +109,7 @@ class LogStash::Outputs::SQS < LogStash::Outputs::Base
     end
 
     begin
+      @logger.debug("New debugging line")
       @logger.debug("Connecting to AWS SQS queue '#{@queue}'...")
       @sqs_queue = @sqs.queues.named(@queue)
       @logger.info("Connected to AWS SQS queue '#{@queue}' successfully.")
