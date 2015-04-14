@@ -3,7 +3,7 @@ Gem::Specification.new do |s|
   s.name            = 'logstash-output-kinesis'
   s.version         = '0.1.3'
   s.licenses        = ['Apache License (2.0)']
-  s.summary         = "Push events to an Amazon Web Services Simple Queue Service (SQS) queue."
+  s.summary         = "Push events to an Amazon Web Services Kinesis stream."
   s.description     = "This gem is a logstash plugin required to be installed on top of the Logstash core pipeline using $LS_HOME/bin/plugin install gemname. This gem is not a stand-alone program"
   s.authors         = ["Elasticsearch"]
   s.email           = 'info@elasticsearch.com'
@@ -23,8 +23,6 @@ Gem::Specification.new do |s|
   s.add_runtime_dependency "logstash", '>= 1.4.0', '< 2.0.0'
   s.add_runtime_dependency 'logstash-mixin-aws'
 
-  #s.add_runtime_dependency 'aws-sdk', '> 1.0.0', '<= 2.0.0'
-  s.add_runtime_dependency 'aws-sdk-v1'
   s.add_runtime_dependency 'aws-sdk', '~> 2.0'
   s.add_runtime_dependency 'stud'
 
