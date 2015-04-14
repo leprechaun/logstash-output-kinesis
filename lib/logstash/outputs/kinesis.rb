@@ -5,31 +5,20 @@ require "logstash/plugin_mixins/aws_config"
 require "stud/buffer"
 require "digest/sha2"
 
-# Push events to an Amazon Web Services Simple Queue Service (SQS) queue.
+# Push events to an Amazon Web Services Kinesis stream.
 #
-# SQS is a simple, scalable queue system that is part of the 
-# Amazon Web Services suite of tools.
-#
-# Although SQS is similar to other queuing systems like AMQP, it
-# uses a custom API and requires that you have an AWS account.
-# See http://aws.amazon.com/sqs/ for more details on how SQS works,
-# what the pricing schedule looks like and how to setup a queue.
+# Amazon Kinesis is a fully managed, cloud-based service for real-time data processing
+# over large, distributed data streams.
 #
 # To use this plugin, you *must*:
 #
 #  * Have an AWS account
-#  * Setup an SQS queue
-#  * Create an identify that has access to publish messages to the queue.
+#  * Setup an Kinesis stream
+#  * Create an identify that has access to publish messages to the stream.
 #
-# The "consumer" identity must have the following permissions on the queue:
+# The "consumer" identity must have the following permissions on the strem:
 #
-#  * sqs:ChangeMessageVisibility
-#  * sqs:ChangeMessageVisibilityBatch
-#  * sqs:GetQueueAttributes
-#  * sqs:GetQueueUrl
-#  * sqs:ListQueues
-#  * sqs:SendMessage
-#  * sqs:SendMessageBatch
+#  * kinesis:PutRecords
 #
 # Typically, you should setup an IAM policy, create a user and apply the IAM policy to the user.
 # A sample policy is as follows:
@@ -39,18 +28,11 @@ require "digest/sha2"
 #          {
 #            "Sid": "Stmt1347986764948",
 #            "Action": [
-#              "sqs:ChangeMessageVisibility",
-#              "sqs:ChangeMessageVisibilityBatch",
-#              "sqs:DeleteMessage",
-#              "sqs:DeleteMessageBatch",
-#              "sqs:GetQueueAttributes",
-#              "sqs:GetQueueUrl",
-#              "sqs:ListQueues",
-#              "sqs:ReceiveMessage"
+#                "kinesis:PutRecords",
 #            ],
 #            "Effect": "Allow",
 #            "Resource": [
-#              "arn:aws:sqs:us-east-1:200850199751:Logstash"
+#              "arn:aws:kinesis:us-east-1:111122223333:stream/Logstash"
 #            ]
 #          }
 #        ]
@@ -58,43 +40,40 @@ require "digest/sha2"
 #
 # See http://aws.amazon.com/iam/ for more details on setting up AWS identities.
 #
-class LogStash::Outputs::SQS < LogStash::Outputs::Base
+class LogStash::Outputs::Kinesis < LogStash::Outputs::Base
   include LogStash::PluginMixins::AwsConfig
   include Stud::Buffer
 
   config_name "kinesis"
   milestone 1
 
-  # Name of SQS queue to push messages into. Note that this is just the name of the queue, not the URL or ARN.
-  config :queue, :validate => :string, :required => true
+  # Name of Kinesis stream to push messages into. Note that this is just the name of the stream, not the URL or ARN.
+  config :stream_name, :validate => :string, :required => true
 
-  # Set to true if you want send messages to SQS in batches with `batch_send`
+  # Name of the field in an event that contains the partition key for kinesis
+  config :event_partition_key, :validate => :string, :default => "message"
+
+  # Set to true if you want send messages to Kinesis in batches with `put_records`
   # from the amazon sdk
   config :batch, :validate => :boolean, :default => true
 
-  # If `batch` is set to true, the number of events we queue up for a `batch_send`.
-  config :batch_events, :validate => :number, :default => 10
+  # If `batch` is set to true, the number of events we queue up for a `put_records`.
+  config :batch_events, :validate => :number, :default => 100
 
-  # If `batch` is set to true, the maximum amount of time between `batch_send` commands when there are pending events to flush.
+  # If `batch` is set to true, the maximum amount of time between `put_records` commands when there are pending events to flush.
   config :batch_timeout, :validate => :number, :default => 5
 
   public
   def aws_service_endpoint(region)
     return {
-        :sqs_endpoint => "sqs.#{region}.amazonaws.com"
+        :kinesis_endpoint => "kinesis.#{region}.amazonaws.com"
     }
   end
 
   public 
   def register
-    require "aws-sdk-v1"
     require "aws-sdk"
 
-    @sqs = AWS::SQS.new(aws_options_hash)
-    @logger.debug("Creating Kinesis object")
-    @logger.debug("access_key_id = '#{@access_key_id}'")
-    @logger.debug("secret_access_key = '#{@secret_access_key}'")
-    @logger.debug("region = '#{@region}'")
     @kinesis = Aws::Kinesis::Client.new(
       region: @region,
       access_key_id: @access_key_id,
@@ -102,7 +81,7 @@ class LogStash::Outputs::SQS < LogStash::Outputs::Base
     )
 
     if @batch
-      if @batch_events > 10
+      if @batch_events > 500
         raise RuntimeError.new(
           "AWS only allows a batch_events parameter of 10 or less"
         )
@@ -116,35 +95,43 @@ class LogStash::Outputs::SQS < LogStash::Outputs::Base
         :max_interval => @batch_timeout,
         :logger => @logger
       )
+    else
+      raise NotImplementedError, 'Currently only batch write is supported'
     end
-
-    begin
-      @logger.debug("Connecting to AWS SQS queue '#{@queue}'...")
-      @sqs_queue = @sqs.queues.named(@queue)
-      @logger.info("Connected to AWS SQS queue '#{@queue}' successfully.")
-    rescue Exception => e
-      @logger.error("Unable to access SQS queue '#{@queue}': #{e.to_s}")
-    end # begin/rescue
   end # def register
 
   public
   def receive(event)
     if @batch
-      buffer_receive(event.to_json)
-      return
+      buffer_receive(
+        {
+          data: event.to_json,
+          partition_key: event[@event_partition_key]
+        }
+      )
+    else
+      raise NotImplementedError, 'Currently only batch write is supported'
     end
-    @sqs_queue.send_message(event.to_json)
   end # def receive
 
   # called from Stud::Buffer#buffer_flush when there are events to flush
   def flush(events, teardown=false)
-    @sqs_queue.batch_send(events)
+    responses = @kinesis.put_records(
+      records: events,
+      stream_name: @stream_name
+    )
+
+    # Raise error
+    responses.each do |response_page|
+      response_page.data.records.each do |response_record|
+        raise "put_records (#{response_record.error_code}): #{response_record.error_message}" unless response_record.error_code.nil?
+      end
+    end
   end
 
   public
   def teardown
     buffer_flush(:final => true)
-    @sqs_queue = nil
     finished
   end # def teardown
 end
