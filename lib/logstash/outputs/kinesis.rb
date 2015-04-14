@@ -40,6 +40,20 @@ require "digest/sha2"
 #
 # See http://aws.amazon.com/iam/ for more details on setting up AWS identities.
 #
+# #### Usage:
+# This is an example of logstash config:
+# [source,ruby]
+# output {
+#    kinesis {
+#      access_key_id => "crazy_key"             (required)
+#      secret_access_key => "monkey_access_key" (required)
+#      region => "eu-west-1"                    (required)
+#      stream_name => "my_stream"               (required)
+#      event_partition_key => "message"         (optional, default is "message")
+#      batch_events => 100                      (optional, batch size)
+#      batch_timeout => 5                       (optional)
+#    }
+#
 class LogStash::Outputs::Kinesis < LogStash::Outputs::Base
   include LogStash::PluginMixins::AwsConfig
   include Stud::Buffer
@@ -121,10 +135,14 @@ class LogStash::Outputs::Kinesis < LogStash::Outputs::Base
       stream_name: @stream_name
     )
 
-    # Raise error
+    # Raise error if kinesis responded any error
     responses.each do |response_page|
       response_page.data.records.each do |response_record|
-        raise "put_records (#{response_record.error_code}): #{response_record.error_message}" unless response_record.error_code.nil?
+        if response_record.error_code.nil?
+          raise RuntimeError.new(
+            "put_records (#{response_record.error_code}): #{response_record.error_message}"
+          )
+        end
       end
     end
   end
