@@ -128,22 +128,50 @@ class LogStash::Outputs::Kinesis < LogStash::Outputs::Base
     end
   end # def receive
 
+  # Return a list of events that failed when writing to kinesis
+  def get_failed_records(responses, events)
+    # Iterate over response records
+    response_record_index = 0
+    failed_events = []
+
+    # Check each page in the response
+    responses.each do |response_page|
+      # Check each record in each page
+      response_page.data.records.each do |response_record|
+        # Collect all failed records
+        if not response_record.error_code.nil?
+          failed_events.push(events[response_record_index])
+        end
+        response_record_index += 1
+      end
+    end
+
+    return failed_events
+  end
+
   # called from Stud::Buffer#buffer_flush when there are events to flush
   def flush(events, teardown=false)
-    responses = @kinesis.put_records(
-      records: events,
-      stream_name: @stream_name
-    )
+    # Initial backoff time
+    backoff = 0.01
 
-    # Raise error if kinesis responded any error
-    responses.each do |response_page|
-      response_page.data.records.each do |response_record|
-        if response_record.error_code.nil?
-          raise RuntimeError.new(
-            "put_records (#{response_record.error_code}): #{response_record.error_message}"
-          )
-        end
-      end
+    # A retry loop
+    loop do
+      responses = @kinesis.put_records(
+        records: events,
+        stream_name: @stream_name
+      )
+
+      failed_events = get_failed_records(responses, events)
+
+      # Retry if failed events if any
+      break if failed_events.count == 0
+
+      @logger.info("Failed #{failed_events.count} records. Retrying in #{backoff}.")
+      events = failed_events
+
+      # Exponential + random backoff
+      sleep(backoff)
+      backoff *= 1.95 + rand() / 10
     end
   end
 
