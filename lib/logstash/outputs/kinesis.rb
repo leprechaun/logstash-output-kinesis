@@ -140,6 +140,7 @@ class LogStash::Outputs::Kinesis < LogStash::Outputs::Base
       response_page.data.records.each do |response_record|
         # Collect all failed records
         if not response_record.error_code.nil?
+          @logger.info("put_records: #{response_record.error_message} (#{response_record.error_code})")
           failed_events.push(events[response_record_index])
         end
         response_record_index += 1
