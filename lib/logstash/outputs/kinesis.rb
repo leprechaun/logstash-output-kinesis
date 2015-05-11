@@ -65,7 +65,7 @@ class LogStash::Outputs::Kinesis < LogStash::Outputs::Base
   config :stream_name, :validate => :string, :required => true
 
   # Name of the field in an event that contains the partition key for kinesis
-  config :event_partition_key, :validate => :string, :default => "message"
+  config :event_partition_keys, :validate => :array, :default => ["message", "@uuid"]
 
   # Set to true if you want send messages to Kinesis in batches with `put_records`
   # from the amazon sdk
@@ -117,10 +117,21 @@ class LogStash::Outputs::Kinesis < LogStash::Outputs::Base
   public
   def receive(event)
     if @batch
+      partition_key = ""
+
+      @event_partition_keys.each do |partition_key_name|
+        if not event[partition_key_name].nil? and event[partition_key_name].length > 0
+          @logger.info("Found field named #{partition_key_name}")
+          partition_key = event[partition_key_name]
+          break
+        end
+        @logger.info("No field named #{partition_key_name}")
+      end
+
       buffer_receive(
         {
           data: event.to_json,
-          partition_key: event[@event_partition_key]
+          partition_key: partition_key
         }
       )
     else
