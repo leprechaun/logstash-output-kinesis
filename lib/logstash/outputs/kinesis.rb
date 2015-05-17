@@ -45,13 +45,13 @@ require "digest/sha2"
 # [source,ruby]
 # output {
 #    kinesis {
-#      access_key_id => "crazy_key"             (required)
-#      secret_access_key => "monkey_access_key" (required)
-#      region => "eu-west-1"                    (required)
-#      stream_name => "my_stream"               (required)
-#      event_partition_key => "message"         (optional, default is "message")
-#      batch_events => 100                      (optional, batch size)
-#      batch_timeout => 5                       (optional)
+#      access_key_id => "crazy_key"                (required)
+#      secret_access_key => "monkey_access_key"    (required)
+#      region => "eu-west-1"                       (required)
+#      stream_name => "my_stream"                  (required)
+#      event_partition_keys => ["message","@uuid"] (optional)
+#      batch_events => 100                         (optional, batch size)
+#      batch_timeout => 5                          (optional)
 #    }
 #
 class LogStash::Outputs::Kinesis < LogStash::Outputs::Base
@@ -86,7 +86,7 @@ class LogStash::Outputs::Kinesis < LogStash::Outputs::Base
 
   public 
   def register
-    require "aws-sdk"
+    require "aws-sdk-resources"
 
     @kinesis = Aws::Kinesis::Client.new(
       region: @region,
