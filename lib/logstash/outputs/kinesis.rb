@@ -178,7 +178,7 @@ class LogStash::Outputs::Kinesis < LogStash::Outputs::Base
       # Retry if failed events if any
       break if failed_events.count == 0
 
-      @logger.info("Failed #{failed_events.count} records. Retrying in #{backoff}.")
+      @logger.warn("Failed #{failed_events.count} records. Retrying in #{backoff}.")
       events = failed_events
 
       # Exponential + random backoff
