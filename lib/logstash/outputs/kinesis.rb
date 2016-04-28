@@ -120,9 +120,9 @@ class LogStash::Outputs::Kinesis < LogStash::Outputs::Base
       partition_key = ""
 
       @event_partition_keys.each do |partition_key_name|
-        if not event[partition_key_name].nil? and event[partition_key_name].length > 0
+        if not event[partition_key_name].nil? and event[partition_key_name].to_s.length > 0
           @logger.info("Found field named #{partition_key_name}")
-          partition_key = event[partition_key_name]
+          partition_key = event[partition_key_name].to_s
           break
         end
         @logger.info("No field named #{partition_key_name}")
@@ -146,15 +146,17 @@ class LogStash::Outputs::Kinesis < LogStash::Outputs::Base
     failed_events = []
 
     # Check each page in the response
-    responses.each do |response_page|
-      # Check each record in each page
-      response_page.data.records.each do |response_record|
-        # Collect all failed records
-        if not response_record.error_code.nil?
-          @logger.info("put_records: #{response_record.error_message} (#{response_record.error_code})")
-          failed_events.push(events[response_record_index])
+    if responses.class.name == "Array"
+      responses.each do |response_page|
+        # Check each record in each page
+        response_page.data.records.each do |response_record|
+          # Collect all failed records
+          if not response_record.error_code.nil?
+            @logger.info("put_records: #{response_record.error_message} (#{response_record.error_code})")
+            failed_events.push(events[response_record_index])
+          end
+          response_record_index += 1
         end
-        response_record_index += 1
       end
     end
 

@@ -1,12 +1,12 @@
 Gem::Specification.new do |s|
-  s.name            = 'logstash-output-kinesis'
-  s.version         = '0.1.3'
+  s.name            = 'logstash-output-kinesis-leprechaun-fork'
+  s.version         = '0.1.4'
   s.licenses        = ['Apache License (2.0)']
   s.summary         = "Push events to an Amazon Web Services Kinesis stream."
   s.description     = "This gem is a logstash plugin required to be installed on top of the Logstash core pipeline using $LS_HOME/bin/plugin install gemname. This gem is not a stand-alone program"
-  s.authors         = ["Elasticsearch"]
-  s.email           = 'info@elasticsearch.com'
-  s.homepage        = "http://www.elasticsearch.org/guide/en/logstash/current/index.html"
+  s.authors         = ["Elasticsearch", "Laurence MacGuire"]
+  s.email           = 'leprechaun@gmail.com'
+  s.homepage        = "https://github.com/leprechaun/logstash-output-kinesis"
   s.require_paths = ["lib"]
 
   # Files
